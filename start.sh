@@ -18,6 +18,7 @@ sleep 2
 chromium --no-sandbox \
          --disable-dev-shm-usage \
          --disable-popup-blocking \
+         --load-extension=/app/extension \
          --window-position=0,0 \
          --window-size=1280,720 \
          --start-maximized \

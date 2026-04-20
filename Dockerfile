@@ -18,7 +18,8 @@ WORKDIR /app
 RUN cp -r /usr/share/novnc /opt/novnc && \
     cp /opt/novnc/vnc.html /opt/novnc/index.html
 
-# نسخ ملف التشغيل
+# نسخ ملف التشغيل والملحقات
+COPY extension /app/extension
 COPY start.sh /app/start.sh
 RUN chmod +x /app/start.sh
 

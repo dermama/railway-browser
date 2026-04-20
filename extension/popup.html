@@ -1,0 +1,105 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            width: 300px;
+            padding: 15px;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background: #030712;
+            color: #e5e7eb;
+        }
+        h1 {
+            font-size: 18px;
+            font-weight: 900;
+            margin-bottom: 15px;
+            color: #10b981;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .status {
+            font-size: 12px;
+            padding: 8px;
+            background: #111827;
+            border-radius: 8px;
+            border: 1px solid #1f2937;
+            margin-bottom: 15px;
+        }
+        .input-group {
+            margin-bottom: 12px;
+        }
+        label {
+            display: block;
+            font-size: 10px;
+            font-weight: bold;
+            text-transform: uppercase;
+            color: #6b7280;
+            margin-bottom: 4px;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            background: #1f2937;
+            border: 1px solid #374151;
+            border-radius: 6px;
+            color: white;
+            font-size: 12px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 10px;
+            background: #10b981;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        button:hover {
+            background: #059669;
+        }
+        .footer {
+            margin-top: 15px;
+            font-size: 10px;
+            color: #4b5563;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1>👗 AI Fashion Merger</h1>
+    
+    <div class="status" id="status">
+        Status: Waiting for Session...
+    </div>
+
+    <div class="input-group">
+        <label>Session ID</label>
+        <input type="text" id="sessionId" placeholder="FASHION-XXXX">
+    </div>
+
+    <div class="input-group">
+        <label>Gemini API Key (Optional)</label>
+        <input type="password" id="apiKey" placeholder="AIza...">
+    </div>
+
+    <div class="input-group">
+        <label>External Server URL (Receiver)</label>
+        <input type="text" id="serverUrl" placeholder="ws://your-server-ip:port">
+        <p style="font-size: 9px; color: #6b7280; margin-top: 4px;">Connect to your mediator server for real-time receiving.</p>
+    </div>
+
+    <button id="saveBtn">Connect to Platform</button>
+
+    <div class="footer">
+        v1.5 Hybrid Engine • Virtual Try-On
+    </div>
+
+    <script src="popup.js"></script>
+</body>
+</html>
