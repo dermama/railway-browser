@@ -15,31 +15,17 @@ sleep 2
 
 # 4. تشغيل المتصفح وفتحه على رابط موقعك
 # وضعنا --disable-popup-blocking لكي لا يمنع النوافذ المنبثقة التي يعتمد عليها موقعك
-# أضفنا --remote-debugging-port=9222 لكي يتمكن السيرفر من التحكم بالمتصفح
 chromium --no-sandbox \
          --disable-dev-shm-usage \
          --disable-popup-blocking \
          --load-extension=/app/extension \
-         --remote-debugging-port=9222 \
          --window-position=0,0 \
          --window-size=1280,720 \
          --start-maximized \
-         "http://localhost:3000/control" \
          "$SITE_URL" &
 
-
-# 5. تشغيل جسر البيانات (Websockify) للربط بين المتصفح والسيرفر الـ VNC
-echo "Starting Websockify bridge on port 6080..."
-websockify 6080 127.0.0.1:5900 &
-sleep 2
-
-
-
-# 6. تشغيل السيرفر الأساسي (Gateway) على البورت الذي حدده Railway
-# ننتظر قليلاً لضمان أن المتصفح و NoVNC قد استقرا
-echo "Waiting 5s for services to stabilize..."
-sleep 5
-echo "Starting Integrated Node.js Server on port $PORT..."
-cd /app/server && node index.js
-
-
+# 5. تشغيل واجهة الويب (NoVNC) لربطها بموقع Railway
+# منصة Railway ستقوم تلقائياً بتغذية المتغير PORT بمنفذ من عندها
+PORT=${PORT:-8080}
+echo "Starting NoVNC on port $PORT..."
+websockify --web /opt/novnc $PORT localhost:5900

@@ -10,26 +10,13 @@ RUN apt-get update && apt-get install -y \
     novnc \
     websockify \
     chromium \
-    curl \
-    gnupg \
-    ffmpeg \
-    nginx \
-    gettext-base \
-    && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
-    && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
-
-
 
 WORKDIR /app
 
 # إعداد واجهة NoVNC الأساسية
 RUN cp -r /usr/share/novnc /opt/novnc && \
     cp /opt/novnc/vnc.html /opt/novnc/index.html
-
-# نسخ السيرفر وتثبيت مكتباته
-COPY server /app/server
-RUN cd /app/server && npm install
 
 # نسخ ملف التشغيل والملحقات
 COPY extension /app/extension

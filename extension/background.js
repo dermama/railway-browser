@@ -3,8 +3,9 @@
 
 // Resolve default server URL dynamically from the extension's origin if possible
 function resolveDefaultServer() {
-    // الاتصال بالسيرفر المحلي المدمج داخل الحاوية
-    return 'ws://localhost:3000/ws';
+    // If the extension is loaded inside a HF Space, self.location is the extension URL
+    // Use the page origin from a runtime API if possible, otherwise fallback to saved
+    return 'wss://monakoki-mdffcd.hf.space';
 }
 
 let config = {
