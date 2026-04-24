@@ -125,15 +125,25 @@ app.get('/api/tasks/:id/result', (req, res) => {
 });
 
 // ── Routing ──
+// خدمة ملفات لوحة التحكم
 app.use('/server-static', express.static(path.join(__dirname, 'public')));
 app.get('/control', (req, res) => res.sendFile(path.join(__dirname, 'public', 'control.html')));
 
+// خدمة ملفات المتصفح (NoVNC) مباشرة من السيرفر
+app.use('/', express.static('/opt/novnc'));
+
+// البروكسي للبيانات فقط (WebSocket)
 const { createProxyMiddleware } = require('http-proxy-middleware');
-app.use('/websockify', createProxyMiddleware({ target: 'http://127.0.0.1:6080', ws: true, changeOrigin: true, logLevel: 'error' }));
-app.use('/', createProxyMiddleware({ target: 'http://127.0.0.1:6080', changeOrigin: true, logLevel: 'error' }));
+app.use('/websockify', createProxyMiddleware({ 
+    target: 'http://127.0.0.1:6080', 
+    ws: true, 
+    changeOrigin: true, 
+    logLevel: 'error' 
+}));
 
 server.on('upgrade', (request, socket, head) => {
     if (request.url === '/ws') wss.handleUpgrade(request, socket, head, (ws) => wss.emit('connection', ws, request));
 });
 
-server.listen(PORT, '0.0.0.0', () => console.log(`[Server] Gateway Ready on port ${PORT}`));
+server.listen(PORT, '0.0.0.0', () => console.log(`[Server] Integrated Gateway Ready on port ${PORT}`));
+

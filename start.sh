@@ -28,10 +28,11 @@ chromium --no-sandbox \
          "$SITE_URL" &
 
 
-# 5. تشغيل واجهة المتصفح (NoVNC) في الخلفية على بورت 6080
-echo "Starting NoVNC on port 6080..."
-/opt/novnc/utils/novnc_proxy --vnc localhost:5900 --listen 6080 --web /opt/novnc &
+# 5. تشغيل جسر البيانات (Websockify) للربط بين المتصفح والسيرفر الـ VNC
+echo "Starting Websockify bridge on port 6080..."
+websockify 6080 127.0.0.1:5900 &
 sleep 2
+
 
 
 # 6. تشغيل السيرفر الأساسي (Gateway) على البورت الذي حدده Railway
