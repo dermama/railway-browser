@@ -2,7 +2,7 @@
 
 # 1. إعداد الشاشة الوهمية (Xvfb)
 export DISPLAY=:99
-Xvfb :99 -screen 0 1280x720x16 &
+Xvfb :99 -screen 0 1280x800x24 &
 sleep 2
 
 # 2. تشغيل مدير النوافذ (ضروري لترتيب النوافذ المفتوحة داخل المتصفح)
@@ -23,10 +23,11 @@ sleep 5
 chromium --no-sandbox \
          --disable-dev-shm-usage \
          --disable-popup-blocking \
+         --disable-gpu \
          --load-extension=/app/extension \
          --remote-debugging-port=9222 \
          --window-position=0,0 \
-         --window-size=1280,720 \
+         --window-size=1280,800 \
          --start-maximized \
          "http://localhost:3000/control" \
          "$SITE_URL" &
