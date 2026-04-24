@@ -15,7 +15,7 @@ const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ noServer: true });
 
-const PORT = 3000;
+const PORT = 7000;
 const CDP_URL = 'http://localhost:9222';
 
 // ── Global State ──
@@ -23,6 +23,10 @@ let lastFrameBuffer = null;
 let pwBrowser = null;
 let pwPage = null;
 let lastActionStatus = "Ready";
+
+// ── Task Management System ──
+let tasks = [];
+let taskResults = {};
 
 // ─────────────────── Minimalist Execution (xdotool) ───────────────────
 // This function triggers interactions INSTANTLY without awaiting browser engine callbacks
@@ -147,6 +151,31 @@ app.get('/api/screen.jpg', (req, res) => {
 app.get('/api/kill', (req, res) => {
     res.send('Restarting Container...');
     setTimeout(() => process.exit(1), 500);
+});
+
+// ── Task Endpoints ──
+app.post('/api/tasks', (req, res) => {
+    const taskId = uuidv4();
+    const newTask = { id: taskId, ...req.body, timestamp: Date.now() };
+    tasks.push(newTask);
+    wss.clients.forEach(c => {
+        if (c.readyState === WebSocket.OPEN) c.send(JSON.stringify({ type: 'NEW_TASK', ...newTask }));
+    });
+    res.json({ status: 'SUCCESS', taskId });
+});
+
+app.get('/api/tasks/next', (req, res) => {
+    res.json(tasks.shift() || null);
+});
+
+app.post(['/api/tasks/:id/complete', '/api/results'], (req, res) => {
+    const taskId = req.params.id || req.body.taskId;
+    taskResults[taskId] = { ...req.body, timestamp: Date.now() };
+    res.json({ status: 'OK' });
+});
+
+app.get('/api/tasks/:id/result', (req, res) => {
+    res.json(taskResults[req.params.id] || { error: 'Not ready' });
 });
 
 app.use(cors());
