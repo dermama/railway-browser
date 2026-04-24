@@ -159,10 +159,17 @@ app.get('/api/kill', (req, res) => {
 // ── Task Endpoints ──
 app.post('/api/tasks', (req, res) => {
     const taskId = uuidv4();
-    const newTask = { id: taskId, ...req.body, timestamp: Date.now() };
+    // التأكد من توافق الحقول مع الإضافة (توقع personImage أو garmentImage)
+    const newTask = { 
+        id: taskId, 
+        taskId: taskId,
+        type: 'TASK_CREATED',
+        ...req.body, 
+        timestamp: Date.now() 
+    };
     tasks.push(newTask);
     wss.clients.forEach(c => {
-        if (c.readyState === WebSocket.OPEN) c.send(JSON.stringify({ type: 'NEW_TASK', ...newTask }));
+        if (c.readyState === WebSocket.OPEN) c.send(JSON.stringify(newTask));
     });
     res.json({ status: 'SUCCESS', taskId });
 });
