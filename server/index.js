@@ -129,8 +129,9 @@ app.get('/api/tasks/:id/result', (req, res) => {
 app.use('/server-static', express.static(path.join(__dirname, 'public')));
 app.get('/control', (req, res) => res.sendFile(path.join(__dirname, 'public', 'control.html')));
 
-// الصفحة الرئيسية تعيد التوجيه لصفحة المتصفح (vnc.html هو اسم الملف الحقيقي في NoVNC)
-app.get('/', (req, res) => res.redirect('/vnc.html'));
+// الصفحة الرئيسية تعيد التوجيه لصفحة المتصفح مع الاتصال التلقائي
+app.get('/', (req, res) => res.redirect('/vnc.html?autoconnect=1&path=websockify&reconnect=1&resize=scale'));
+
 
 // خدمة ملفات المتصفح (NoVNC) مباشرة من السيرفر
 app.use('/', express.static('/opt/novnc'));
