@@ -26,11 +26,23 @@ chromium --no-sandbox \
          --start-maximized \
          "$SITE_URL" &
 
-# 5. تشغيل سيرفر Node.js (الخلفية)
-echo "Starting Node.js Server..."
+# 5. تشغيل سيرفر Node.js (الخلفية) على بورت داخلي 3000
+echo "Starting Node.js Server on internal port 3000..."
+# نحفظ البورت الأصلي الذي أعطاه Railway
+export REAL_PORT=$PORT
+export PORT=3000
 cd /app/server && node index.js &
 
-# 6. تشغيل واجهة الويب (NoVNC) كاحتياط على بورت مختلف
-# ملاحظة: Railway سيوجه الحركة للسيرفر (البورت الأساسي)
-echo "Starting NoVNC (Secondary) on port 6080..."
-websockify --web /opt/novnc 6080 localhost:5900
+# 6. تشغيل NoVNC على بورت داخلي 6080
+echo "Starting NoVNC on port 6080..."
+/opt/novnc/utils/novnc_proxy --vnc localhost:5900 --listen 6080 &
+sleep 2
+
+# 7. تشغيل Nginx ليكون هو الواجهة الأساسية (يوجه الحركة للمتصفح وللسيرفر)
+echo "Configuring Nginx to use port $REAL_PORT..."
+export PORT=$REAL_PORT
+envsubst '$PORT' < /app/server/nginx.conf > /etc/nginx/sites-available/default
+service nginx start
+
+# البقاء قيد التشغيل لمراقبة اللوجات
+tail -f /dev/null
