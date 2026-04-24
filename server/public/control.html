@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Merger Ghost Control</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #0f172a;
+            color: #f8fafc;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 8px 16px;
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+            flex-shrink: 0;
+        }
+        .topbar h1 { font-size: 1rem; color: #38bdf8; }
+        .topbar-controls { display: flex; gap: 8px; align-items: center; }
+        .mode-toggle { font-size: 0.7rem; display: flex; align-items: center; gap: 4px; background: #334155; padding: 4px 8px; border-radius: 4px; }
+        .diagnostic-panel {
+            position: fixed; top: 50px; left: 10px; right: 10px; bottom: 10px;
+            background: rgba(15, 23, 42, 0.95); z-index: 1000; border: 1px solid #38bdf8;
+            padding: 20px; border-radius: 8px; overflow-y: auto; display: none;
+        }
+        .diagnostic-panel.visible { display: block; }
+        .online { background: #064e3b; color: #34d399; }
+        .offline { background: #7f1d1d; color: #f87171; }
+        button {
+            background: #38bdf8;
+            color: #0f172a;
+            border: none;
+            padding: 6px 14px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 0.8rem;
+            transition: background 0.2s;
+        }
+        button:hover { background: #7dd3fc; }
+        .main {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+            gap: 8px;
+            padding: 8px;
+        }
+        /* Screen Viewer */
+        .screen-container {
+            flex: 1;
+            background: #000;
+            border-radius: 8px;
+            overflow: auto;
+            position: relative;
+            border: 1px solid #334155;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+        }
+        #screen-canvas {
+            max-width: 100%;
+            height: auto;
+            background: #111;
+            cursor: crosshair;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+        .click-dot {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            background: #ef4444;
+            border-radius: 50%;
+            pointer-events: none;
+            transform: translate(-50%, -50%);
+            z-index: 100;
+            box-shadow: 0 0 15px #ef4444;
+            transition: transform 0.2s, opacity 0.5s;
+        }
+        .canvas-loading { cursor: wait !important; opacity: 0.8; }
+
+        /* Sidebar */
+        .sidebar {
+            width: 260px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            flex-shrink: 0;
+            overflow-y: auto;
+        }
+        .card {
+            background: #1e293b;
+            border-radius: 8px;
+            padding: 12px;
+            border: 1px solid #334155;
+        }
+        .card h3 { font-size: 0.85rem; color: #94a3b8; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+        input[type="text"] {
+            background: #0f172a;
+            border: 1px solid #334155;
+            color: white;
+            padding: 10px;
+            border-radius: 6px;
+            width: 100%;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+        .key-row { display: flex; gap: 6px; flex-wrap: wrap; }
+        .key-row button { flex: 1; min-width: 60px; padding: 10px 4px; font-size: 0.75rem; background: #475569; color: white; }
+        .logs {
+            background: #000;
+            color: #10b981;
+            padding: 8px;
+            border-radius: 6px;
+            height: 150px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 0.7rem;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <div class="topbar">
+        <h1>👻 Ghost Stealth — <span id="mode-text">Stream</span></h1>
+        <div class="topbar-controls">
+            <button id="touch-toggle" onclick="toggleClickMode()" style="background:#0f766e; color:white; font-size:0.7rem;" title="Toggle Touch/Mouse mode">👆 Touch</button>
+            <span id="pw-status" style="font-size:0.7rem; background:#1e293b; padding:3px 8px; border-radius:4px; color:#f59e0b;">⚙ PW...</span>
+            <button onclick="toggleDiag()" style="background:#475569; color:white; font-size:0.7rem;">📊 Diagnostics</button>
+            <span id="ws-status" class="status-pill offline">OFFLINE</span>
+            <span id="fps-counter" style="font-size: 0.7rem; color: #64748b;">0 FPS</span>
+        </div>
+    </div>
+
+    <div id="diag-panel" class="diagnostic-panel">
+        <div style="display:flex; justify-content:space-between; margin-bottom:10px; gap: 8px;">
+            <h2 style="color:#38bdf8; font-size:1rem;">System Diagnostics</h2>
+            <div style="display:flex; gap: 6px;">
+                <button onclick="window.open('/api/playwright/screenshot', '_blank')" style="background:#7c3aed;">📸 PW Screen</button>
+                <button onclick="refreshTabs()" style="background:#0891b2;">🔄 Sync Tabs</button>
+                <button onclick="sendRemoteAction({action:'click_mouse', x:640, y:400})" style="background:#10b981;">📍 Center Mouse</button>
+                <button onclick="if(confirm('Full reset?')) fetch('/api/kill')" style="background:#dc2626;">⚡ Hard Reset</button>
+                <button onclick="toggleDiag()" style="background:#475569;">Close [X]</button>
+            </div>
+        </div>
+        <pre id="diag-content" style="background:#000; color:#34d399; padding:10px; border-radius:4px; font-size:0.75rem; white-space:pre-wrap;">Fetching diagnostics...</pre>
+    </div>
+
+    <div class="main">
+        <div class="screen-container" id="container">
+            <canvas id="screen-canvas" width="1280" height="800"></canvas>
+        </div>
+
+        <div class="sidebar">
+            <div class="card">
+                <h3>⌨️ Type Text</h3>
+                <input type="text" id="type-input" placeholder="Type here...">
+                <button id="send-btn" style="width:100%">Type Text (Enter)</button>
+            </div>
+
+            <div class="card">
+                <h3>🎯 Fast Keys</h3>
+                <div class="key-row">
+                    <button onclick="sendKey('Tab')">Tab</button>
+                    <button onclick="sendKey('Return')" style="background:#d97706">Enter</button>
+                    <button onclick="sendKey('BackSpace')" style="background:#b91c1c">Del</button>
+                </div>
+                <div class="key-row" style="margin-top:6px">
+                    <button onclick="sendKey('ctrl+a')">Ctrl+A</button>
+                    <button onclick="sendKey('ctrl+c')">Ctrl+C</button>
+                    <button onclick="sendKey('ctrl+v')">Ctrl+V</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>🌐 Navigate</h3>
+                <input type="text" id="nav-input" placeholder="https://...">
+                <button id="nav-btn" style="width:100%; background:#7c3aed;">Go</button>
+            </div>
+
+            <div class="card">
+                <h3>🖱️ Actions</h3>
+                <div class="key-row">
+                    <button onclick="sendRemoteAction({action:'scroll', x:0, y:200})" style="background:#475569;color:white">↓ Scroll</button>
+                    <button onclick="sendRemoteAction({action:'scroll', x:0, y:-200})" style="background:#475569;color:white">↑ Scroll</button>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3>📜 Logs</h3>
+                <div class="logs" id="logs">
+                    <div>> Ghost System Active</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('screen-canvas');
+        const ctx = canvas.getContext('2d');
+        const wsStatus = document.getElementById('ws-status');
+        const fpsCounter = document.getElementById('fps-counter');
+        const logs = document.getElementById('logs');
+        const typeInput = document.getElementById('type-input');
+        const sendBtn = document.getElementById('send-btn');
+        const container = document.getElementById('container');
+        const modeText = document.getElementById('mode-text');
+        const diagPanel = document.getElementById('diag-panel');
+        const diagContent = document.getElementById('diag-content');
+        const pwStatusEl = document.getElementById('pw-status');
+        const touchToggleBtn = document.getElementById('touch-toggle');
+        const navInput = document.getElementById('nav-input');
+        const navBtn = document.getElementById('nav-btn');
+
+        let socket = null;
+        let lastFrameTime = Date.now();
+        let frameCount = 0;
+        let isPolling = false;
+        let pollTimer = null;
+        let clickMode = 'touch'; // 'touch' or 'mouse'
+
+        // Playwright status poller
+        async function pollPWStatus() {
+            try {
+                const r = await fetch('/api/playwright/status');
+                const d = await r.json();
+                if (d.connected) {
+                    const page = d.pageUrl ? d.pageUrl.substring(0, 30) + '...' : 'connected';
+                    pwStatusEl.innerText = '✅ PW: ' + page;
+                    pwStatusEl.style.color = '#34d399';
+                } else {
+                    pwStatusEl.innerText = '❌ PW: disconnected';
+                    pwStatusEl.style.color = '#f87171';
+                }
+            } catch(e) {
+                pwStatusEl.innerText = '⚠ PW: unreachable';
+                pwStatusEl.style.color = '#f59e0b';
+            }
+        }
+        setInterval(pollPWStatus, 5000);
+        pollPWStatus();
+
+        function toggleClickMode() {
+            clickMode = clickMode === 'touch' ? 'mouse' : 'touch';
+            touchToggleBtn.innerText = clickMode === 'touch' ? '👆 Touch' : '🖱️ Mouse';
+            touchToggleBtn.style.background = clickMode === 'touch' ? '#0f766e' : '#7c3aed';
+            addLog('Click mode: ' + clickMode.toUpperCase());
+        }
+
+        navBtn.addEventListener('click', async () => {
+            const url = navInput.value.trim();
+            if (!url) return;
+            try {
+                const r = await fetch('/api/playwright/navigate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+                const d = await r.json();
+                addLog(d.success ? 'Navigated to: ' + url : 'Nav error: ' + d.error);
+            } catch(e) { addLog('Nav error: ' + e.message); }
+        });
+        navInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') navBtn.click(); });
+
+        function addLog(msg) {
+            const d = document.createElement('div');
+            d.innerText = `> ${new Date().toLocaleTimeString()}: ${msg}`;
+            logs.appendChild(d);
+            logs.scrollTop = logs.scrollHeight;
+        }
+
+        function toggleDiag() {
+            diagPanel.classList.toggle('visible');
+            if (diagPanel.classList.contains('visible')) fetchDiagnostics();
+        }
+
+        async function fetchDiagnostics() {
+            diagContent.innerText = "Fetching current system state...";
+            try {
+                const res = await fetch('/api/debug');
+                const data = await res.json();
+                diagContent.innerText = JSON.stringify(data, null, 2);
+            } catch (e) {
+                diagContent.innerText = "Error fetching diagnostics: " + e.message;
+            }
+        }
+
+        async function refreshTabs() {
+            addLog("Refreshing browser tab list...");
+            try {
+                const res = await fetch('/api/playwright/refresh');
+                const data = await res.json();
+                addLog("Synced: " + data.url);
+                fetchDiagnostics();
+            } catch(e) { addLog("Sync Error: " + e.message); }
+        }
+
+        function startPolling() {
+            if (isPolling) return;
+            isPolling = true;
+            modeText.innerText = "Polling Fallback";
+            addLog("Switching to Emergency HTTP Polling...");
+            
+            function poll() {
+                if (!isPolling) return;
+                const img = new Image();
+                img.onload = () => {
+                    ctx.drawImage(img, 0, 0, 1280, 800);
+                    frameCount++;
+                    updateFPS();
+                    pollTimer = setTimeout(poll, 200); // 5 FPS polling
+                };
+                img.onerror = () => {
+                    pollTimer = setTimeout(poll, 1000);
+                };
+                img.src = "/api/screen.jpg?t=" + Date.now();
+            }
+            poll();
+        }
+
+        function updateFPS() {
+            const now = Date.now();
+            if (now - lastFrameTime >= 1000) {
+                fpsCounter.innerText = `${frameCount} FPS`;
+                frameCount = 0;
+                lastFrameTime = now;
+            }
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = 1280 / rect.width;
+            const scaleY = 800 / rect.height;
+            const x = Math.round((e.clientX - rect.left) * scaleX);
+            const y = Math.round((e.clientY - rect.top) * scaleY);
+
+            const dot = document.createElement('div');
+            dot.className = 'click-dot';
+            dot.style.left = `${e.clientX - container.getBoundingClientRect().left + container.scrollLeft}px`;
+            dot.style.top = `${e.clientY - container.getBoundingClientRect().top + container.scrollTop}px`;
+            container.appendChild(dot);
+            setTimeout(() => { dot.style.opacity = '0'; setTimeout(() => dot.remove(), 400); }, 100);
+
+            sendRemoteAction({ action: clickMode === 'touch' ? 'click' : 'click_mouse', x, y });
+        });
+
+        function sendRemoteAction(data) {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({ type: 'REMOTE_ACTION', ...data }));
+            }
+        }
+
+        function sendKey(key) {
+            sendRemoteAction({ action: 'key', key });
+        }
+
+        sendBtn.addEventListener('click', () => {
+            const text = typeInput.value;
+            if (text) {
+                sendRemoteAction({ action: 'type', text });
+                typeInput.value = '';
+            }
+        });
+
+        typeInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') sendBtn.click();
+        });
+
+        function connect() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
+            socket = new WebSocket(wsUrl);
+
+            socket.onopen = () => {
+                wsStatus.innerText = 'ONLINE';
+                wsStatus.className = 'status-pill online';
+                addLog("Connected to Streamer");
+            };
+
+            socket.onmessage = (event) => {
+                if (isPolling) return; // Ignore WS if polling is active
+                try {
+                    const data = JSON.parse(event.data);
+                    if (data.type === 'SCREENSHOT_STREAM') {
+                        const img = new Image();
+                        img.onload = () => {
+                            ctx.drawImage(img, 0, 0, 1280, 800);
+                            frameCount++;
+                            updateFPS();
+                            clearTimeout(watchdog);
+                            startWatchdog();
+                        };
+                        img.src = data.image;
+                    }
+                } catch (e) {}
+            };
+
+            socket.onclose = () => {
+                wsStatus.innerText = 'OFFLINE';
+                wsStatus.className = 'status-pill offline';
+                setTimeout(connect, 3000);
+                startPolling();
+            };
+        }
+
+        let watchdog = null;
+        function startWatchdog() {
+            clearTimeout(watchdog);
+            watchdog = setTimeout(() => {
+                addLog("No stream for 5s, checking diagnostics...");
+                if (!isPolling) startPolling();
+            }, 5000);
+        }
+
+        connect();
+        startWatchdog();
+    </script>
+</body>
+</html>
