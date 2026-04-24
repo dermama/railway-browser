@@ -122,6 +122,9 @@ app.get('/api/debug', async (req, res) => {
     exec('ps aux | grep -v grep | grep -E "chrome|Xvfb|ffmpeg|node"', (err, stdout) => {
         res.json({
             status: lastActionStatus,
+            connected_extensions: wss.clients.size,
+            pending_tasks: tasks.length,
+            completed_tasks_count: Object.keys(taskResults).length,
             playwright: pwPage ? `OK: ${pwPage.url()}` : 'Connecting...',
             x11_errors: x11Logs,
             processes: stdout || err?.message,
