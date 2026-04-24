@@ -29,7 +29,6 @@ chromium --no-sandbox \
          --window-position=0,0 \
          --window-size=1280,800 \
          --start-maximized \
-         "http://localhost:7000" \
          "$SITE_URL" &
 
 # 6. تشغيل جسر NoVNC على بورت داخلي (6080)
