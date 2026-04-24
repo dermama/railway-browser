@@ -35,7 +35,10 @@ sleep 2
 
 
 # 6. تشغيل السيرفر الأساسي (Gateway) على البورت الذي حدده Railway
-# هذا السيرفر سيستقبل كل الحركات ويوجهها للمتصفح أو يعالج الـ API
+# ننتظر قليلاً لضمان أن المتصفح و NoVNC قد استقرا
+echo "Waiting 5s for services to stabilize..."
+sleep 5
 echo "Starting Integrated Node.js Server on port $PORT..."
 cd /app/server && node index.js
+
 
