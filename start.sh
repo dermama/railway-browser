@@ -28,8 +28,9 @@ chromium --no-sandbox \
 
 # 5. تشغيل واجهة المتصفح (NoVNC) في الخلفية على بورت 6080
 echo "Starting NoVNC on port 6080..."
-/opt/novnc/utils/novnc_proxy --vnc localhost:5900 --listen 6080 &
+/opt/novnc/utils/novnc_proxy --vnc localhost:5900 --listen 6080 --web /opt/novnc &
 sleep 2
+
 
 # 6. تشغيل السيرفر الأساسي (Gateway) على البورت الذي حدده Railway
 # هذا السيرفر سيستقبل كل الحركات ويوجهها للمتصفح أو يعالج الـ API
