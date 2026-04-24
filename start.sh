@@ -32,7 +32,15 @@ chromium --no-sandbox \
          "http://localhost:7000" \
          "$SITE_URL" &
 
-# 6. تشغيل واجهة الويب (NoVNC) لربطها بموقع Railway
-PORT=${PORT:-8080}
-echo "Starting NoVNC on port $PORT..."
-websockify --web /opt/novnc $PORT localhost:5900
+# 6. تشغيل جسر NoVNC على بورت داخلي (6080)
+echo "Starting NoVNC bridge on port 6080..."
+websockify --web /opt/novnc 6080 localhost:5900 &
+sleep 2
+
+# 7. إعداد وتشغيل Nginx ليكون هو الواجهة الأساسية (على بورت Railway)
+echo "Configuring Nginx on port $PORT..."
+envsubst '${PORT}' < /app/server/nginx.conf > /etc/nginx/sites-available/default
+ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default
+
+# تشغيل Nginx في الواجهة الأمامية لإبقاء الحاوية تعمل
+nginx -g 'daemon off;'

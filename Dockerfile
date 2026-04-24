@@ -3,7 +3,7 @@ FROM debian:bookworm-slim
 ENV DEBIAN_FRONTEND=noninteractive
 
 # تثبيت الحزم: شاشة وهمية، سيرفر VNC، مدير نوافذ، NoVNC لعرضه في الويب، ومتصفح كروميوم
-# تثبيت الحزم الأساسية: شاشة وهمية، سيرفر VNC، مدير نوافذ، NoVNC، متصفح كروميوم، Node.js، ffmpeg (للبث)، و xdotool (للتحكم)
+# تثبيت الحزم الأساسية: شاشة وهمية، سيرفر VNC، مدير نوافذ، NoVNC، متصفح كروميوم، Node.js، ffmpeg، xdotool، و Nginx
 RUN apt-get update && apt-get install -y \
     curl \
     xvfb \
@@ -14,6 +14,8 @@ RUN apt-get update && apt-get install -y \
     chromium \
     ffmpeg \
     xdotool \
+    nginx \
+    gettext-base \
     && curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
     && apt-get install -y nodejs \
     && rm -rf /var/lib/apt/lists/*
