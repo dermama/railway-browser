@@ -208,14 +208,42 @@ app.get('/api/tasks/:id/result', (req, res) => {
     res.json(result);
 });
 
+const { createProxyMiddleware } = require('http-proxy-middleware');
+
 app.use(cors());
 app.use(bodyParser.json({ limit: '50mb' }));
-app.use(express.static('public'));
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'control.html')));
+
+// 1. مسار الـ API والـ WebSocket الخاص بالملحق
+// (يبقى كما هو، السيرفر سيعالجه)
+
+// 2. مسار لوحة التحكم الخاصة بالسيرفر
+app.get('/control', (req, res) => res.sendFile(path.join(__dirname, 'public', 'control.html')));
+
+// 3. توجيه حركة المرور الخاصة بـ NoVNC (المتصفح)
+// هذا يسمح للمستخدم برؤية المتصفح عند فتح الرابط الرئيسي
+app.use('/websockify', createProxyMiddleware({
+    target: 'http://localhost:6080',
+    ws: true,
+    changeOrigin: true,
+    logLevel: 'debug'
+}));
+
+// أي مسار آخر يتم توجيهه إلى NoVNC (المتصفح)
+app.use('/', createProxyMiddleware({
+    target: 'http://localhost:6080',
+    changeOrigin: true,
+    logLevel: 'debug'
+}));
 
 server.on('upgrade', (request, socket, head) => {
-    if (request.url === '/ws') wss.handleUpgrade(request, socket, head, (ws) => wss.emit('connection', ws, request));
-    else socket.destroy();
+    if (request.url === '/ws') {
+        wss.handleUpgrade(request, socket, head, (ws) => wss.emit('connection', ws, request));
+    } else if (request.url.startsWith('/websockify')) {
+        // سيتم التعامل معه عبر http-proxy-middleware أعلاه
+    } else {
+        socket.destroy();
+    }
 });
 
-server.listen(PORT, '0.0.0.0', () => console.log(`[Server] Ghost V10.Stable running on ${PORT}`));
+server.listen(PORT, '0.0.0.0', () => console.log(`[Server] Integrated Gateway running on port ${PORT}`));
+
