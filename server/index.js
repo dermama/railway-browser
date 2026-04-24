@@ -211,54 +211,39 @@ app.get('/api/tasks/:id/result', (req, res) => {
 app.use(cors());
 app.use(bodyParser.json({ limit: '50mb' }));
 
-// 1. ملفات السيرفر المحلية (لوحة التحكم)
-// نبحث هنا أولاً عن أي ملفات موجودة في مجلد public
-app.use(express.static(path.join(__dirname, 'public')));
+// 1. ملفات السيرفر - نجعلها في مسارات خاصة لكي لا تظهر في الصفحة الرئيسية
+app.use('/server-static', express.static(path.join(__dirname, 'public')));
 
-// مسار صريح للوحة التحكم
+// مسار لوحة التحكم - سيتم فتحه من داخل المتصفح
 app.get('/control', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'control.html'));
 });
 
-// 2. توجيه حركة المرور الخاصة بالمتصفح (NoVNC)
-// نستخدم الـ Proxy فقط للمسارات التي لا يملكها السيرفر محلياً
+// 2. توجيه الحركة للمتصفح (NoVNC)
 const { createProxyMiddleware } = require('http-proxy-middleware');
 
-// بروكسي للـ WebSocket الخاص بالمتصفح
+// بروكسي للـ WebSocket
 app.use('/websockify', createProxyMiddleware({
     target: 'http://localhost:6080',
     ws: true,
     changeOrigin: true,
-    logLevel: 'error',
-    onError: (err, req, res) => {
-        console.error('[Proxy Error]:', err.message);
-        if (res.writeHead) {
-            res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8' });
-            res.end('المتصفح قيد التشغيل، يرجى تحديث الصفحة بعد لحظات...');
-        }
-    }
+    logLevel: 'error'
 }));
 
-// أي مسار آخر غير موجود محلياً، نرسله للمتصفح
+// الصفحة الرئيسية تعرض المتصفح فقط
 app.use('/', createProxyMiddleware({
     target: 'http://localhost:6080',
     changeOrigin: true,
-    logLevel: 'error',
-    onError: (err, req, res) => {
-        if (res.writeHead) {
-            res.writeHead(503, { 'Content-Type': 'text/plain; charset=utf-8' });
-            res.end('المتصفح قيد التشغيل، يرجى تحديث الصفحة بعد لحظات...');
-        }
-    }
+    logLevel: 'error'
 }));
 
 server.on('upgrade', (request, socket, head) => {
     if (request.url === '/ws') {
         wss.handleUpgrade(request, socket, head, (ws) => wss.emit('connection', ws, request));
     }
-    // مسار websockify يتم معالجته عبرMiddleware أعلاه تلقائياً
 });
 
 server.listen(PORT, '0.0.0.0', () => console.log(`[Server] Integrated Gateway running on port ${PORT}`));
+
 
 

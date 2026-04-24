@@ -24,7 +24,9 @@ chromium --no-sandbox \
          --window-position=0,0 \
          --window-size=1280,720 \
          --start-maximized \
+         "http://localhost:3000/control" \
          "$SITE_URL" &
+
 
 # 5. تشغيل واجهة المتصفح (NoVNC) في الخلفية على بورت 6080
 echo "Starting NoVNC on port 6080..."
