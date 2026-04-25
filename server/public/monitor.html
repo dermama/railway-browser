@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mediator Monitor | لوحة المراقبة المركزية</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&family=Tajawal:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --accent: #10b981;
+            --bg: #0f172a;
+            --card: rgba(30, 41, 59, 0.7);
+        }
+        body {
+            font-family: 'Outfit', 'Tajawal', sans-serif;
+            background: var(--bg);
+            color: white;
+            margin: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        header {
+            width: 100%;
+            padding: 20px;
+            text-align: center;
+            background: rgba(15, 23, 42, 0.9);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .container {
+            width: 90%;
+            max-width: 1200px;
+            margin-top: 30px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+        }
+        .stat-card {
+            background: var(--card);
+            padding: 20px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            text-align: center;
+            backdrop-filter: blur(10px);
+        }
+        .stat-card h3 { margin: 0; color: #94a3b8; font-size: 0.9rem; }
+        .stat-card .value { font-size: 2.5rem; font-weight: 600; color: var(--primary); margin: 10px 0; }
+        
+        .log-section {
+            grid-column: 1 / -1;
+            background: var(--card);
+            border-radius: 16px;
+            padding: 20px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        .task-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            font-size: 0.9rem;
+        }
+        .status-badge {
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: bold;
+        }
+        .status-pending { background: #f59e0b; color: black; }
+        .status-completed { background: #10b981; color: white; }
+
+        .live-stream {
+            grid-column: 1 / -1;
+            text-align: center;
+        }
+        #screen-view {
+            width: 100%;
+            max-width: 800px;
+            border-radius: 12px;
+            border: 4px solid #1e293b;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Mediator V12 <span style="color: var(--primary);">Monitor</span></h1>
+        <p>نظام مراقبة الربط بين الخارج والإضافة</p>
+    </header>
+
+    <div class="container">
+        <div class="stat-card">
+            <h3>الإضافات المتصلة</h3>
+            <div id="count-extensions" class="value">0</div>
+        </div>
+        <div class="stat-card">
+            <h3>المهام المنتظرة</h3>
+            <div id="count-pending" class="value">0</div>
+        </div>
+        <div class="stat-card">
+            <h3>المهام المكتملة</h3>
+            <div id="count-completed" class="value">0</div>
+        </div>
+
+        <div class="live-stream">
+            <h3>بث حي للمتصفح (VNC)</h3>
+            <img id="screen-view" src="" alt="Waiting for stream...">
+        </div>
+
+        <div class="log-section">
+            <h3>آخر العمليات</h3>
+            <div id="task-logs">
+                <div class="task-row">في انتظار البيانات...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const statsUrl = '/api/monitor/stats';
+        const wsUrl = `ws://${window.location.host}/ws`;
+
+        async function updateStats() {
+            try {
+                const res = await fetch(statsUrl);
+                const data = await res.json();
+                document.getElementById('count-extensions').innerText = data.connected_extensions;
+                document.getElementById('count-pending').innerText = data.pending_tasks;
+                document.getElementById('count-completed').innerText = data.completed_tasks;
+
+                const logs = document.getElementById('task-logs');
+                if (data.tasks_history.length > 0) {
+                    logs.innerHTML = data.tasks_history.map(t => `
+                        <div class="task-row">
+                            <span>ID: ${t.taskId.substring(0, 8)}...</span>
+                            <span>${new Date(t.timestamp).toLocaleTimeString('ar-SA')}</span>
+                            <span class="status-badge status-completed">مكتمل</span>
+                        </div>
+                    `).join('');
+                }
+            } catch (e) {}
+        }
+
+        const ws = new WebSocket(wsUrl);
+        ws.onmessage = (event) => {
+            const data = JSON.parse(event.data);
+            if (data.type === 'SCREENSHOT_STREAM') {
+                document.getElementById('screen-view').src = data.image;
+            }
+        };
+
+        setInterval(updateStats, 3000);
+        updateStats();
+    </script>
+</body>
+</html>

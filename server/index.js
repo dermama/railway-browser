@@ -8,83 +8,39 @@ const bodyParser = require('body-parser');
 const cors = require('cors');
 const { v4: uuidv4 } = require('uuid');
 
-// ── Playwright (connects in background, no longer blocks primary control) ──
-const { chromium } = require('playwright-core');
-
 const app = express();
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ noServer: true });
 
 const PORT = 7000;
-const CDP_URL = 'http://localhost:9222';
+const DISPLAY = ':99';
 
-// ── Global State ──
-let lastFrameBuffer = null;
-let pwBrowser = null;
-let pwPage = null;
-let lastActionStatus = "Ready";
-
-// ── Task Management System ──
+// ── Global Mediator State ──
 let tasks = [];
 let taskResults = {};
+let lastActionStatus = "System Ready";
+let lastFrameBuffer = null;
 
-// ─────────────────── Minimalist Execution (xdotool) ───────────────────
-// This function triggers interactions INSTANTLY without awaiting browser engine callbacks
+// ── Minimalist xdotool Interaction ──
 function directAction(data) {
     const { action, x, y, key, text } = data;
-    console.log(`[Direct] Executing: ${action} at (${x},${y})`);
-    
     let cmd = "";
-    if (action === 'click' || action === 'click_mouse') {
-        cmd = `/usr/bin/xdotool mousemove ${x} ${y} click 1`;
-    } else if (action === 'type') {
-        cmd = `/usr/bin/xdotool type '${text.replace(/'/g, "'\\''")}'`;
-    } else if (action === 'key') {
-        cmd = `/usr/bin/xdotool key ${key === 'Return' ? 'Return' : key}`;
-    } else if (action === 'scroll') {
-        cmd = `/usr/bin/xdotool click ${y > 0 ? '5' : '4'}`;
-    }
+    if (action === 'click') cmd = `/usr/bin/xdotool mousemove ${x} ${y} click 1`;
+    else if (action === 'type') cmd = `/usr/bin/xdotool type '${text.replace(/'/g, "'\\''")}'`;
+    else if (action === 'key') cmd = `/usr/bin/xdotool key ${key}`;
+    else if (action === 'scroll') cmd = `/usr/bin/xdotool click ${y > 0 ? '5' : '4'}`;
 
     if (cmd) {
-        // Direct execution with explicit env for stability
-        exec(cmd, { env: { ...process.env, DISPLAY: ':99' } }, (err, stdout, stderr) => {
-            if (err || stderr) fs.appendFileSync('/tmp/x11_errors.log', `[${new Date().toISOString()}] ${action} ERR: ${stderr || err.message}\n`);
-        });
+        exec(cmd, { env: { ...process.env, DISPLAY } });
+        lastActionStatus = `Executed: ${action}`;
     }
-
-    lastActionStatus = `Direct: ${action} (${x},${y})`;
-    // Background: If in "Touch" mode, ALSO trigger a playwright tap
-    if (action === 'click' && pwPage) pwPage.touchscreen.tap(x, y).catch(() => {});
 }
 
-// ─────────────────── Playwright (Background Only) ───────────────────
-async function findActivePage(browser) {
-    try {
-        const contexts = browser.contexts();
-        let allPages = [];
-        for (const ctx of contexts) allPages = allPages.concat(ctx.pages());
-        return allPages.find(p => !p.url().startsWith('chrome:')) || allPages[0];
-    } catch (e) { return null; }
-}
-
-async function connectPlaywright() {
-    try {
-        if (!pwBrowser) {
-            pwBrowser = await chromium.connectOverCDP(CDP_URL);
-            pwBrowser.on('disconnected', () => { pwBrowser = null; pwPage = null; });
-        }
-        pwPage = await findActivePage(pwBrowser);
-    } catch (e) { setTimeout(connectPlaywright, 5000); }
-}
-
-setInterval(connectPlaywright, 15000);
-setTimeout(connectPlaywright, 5000);
-
-// ─────────────────── Ghost Streamer (FFMPEG) ───────────────────
+// ── FFMPEG Screen Streamer (For VNC Monitor) ──
 function startGhostStreamer() {
     console.log('[Ghost] Starting FFMPEG Streamer...');
     const streamer = spawn('ffmpeg', [
-        '-f', 'x11grab', '-r', '12', '-s', '1280x800', '-i', ':99',
+        '-f', 'x11grab', '-r', '12', '-s', '1280x800', '-i', DISPLAY,
         '-f', 'image2pipe', '-vcodec', 'mjpeg', '-'
     ]);
 
@@ -96,6 +52,7 @@ function startGhostStreamer() {
             const frame = buffer.slice(0, eoiIndex + 2);
             buffer = buffer.slice(eoiIndex + 2);
             lastFrameBuffer = frame;
+            // Broadcast screen to monitor clients
             if (wss.clients.size > 0) {
                 const msg = JSON.stringify({ type: 'SCREENSHOT_STREAM', image: `data:image/jpeg;base64,${frame.toString('base64')}` });
                 wss.clients.forEach(c => { if (c.readyState === WebSocket.OPEN) c.send(msg); });
@@ -107,95 +64,106 @@ function startGhostStreamer() {
 }
 startGhostStreamer();
 
-// ─────────────────── WebSocket & API ───────────────────
+// ── WebSocket Handler ──
 wss.on('connection', (ws) => {
+    console.log('[WS] Client connected (Extension or Monitor)');
     ws.on('message', (msg) => {
         try {
             const data = JSON.parse(msg.toString());
             if (data.type === 'REMOTE_ACTION') directAction(data);
+            if (data.type === 'RESULT_READY') {
+                console.log(`[Mediator] Result received for Task ${data.taskId}`);
+                taskResults[data.taskId] = { ...data, status: 'COMPLETED', timestamp: Date.now() };
+            }
         } catch (e) {}
     });
 });
 
-app.get('/api/debug', async (req, res) => {
-    const x11Logs = fs.existsSync('/tmp/x11_errors.log') ? fs.readFileSync('/tmp/x11_errors.log', 'utf8').slice(-2000) : "No errors.";
-    exec('ps aux | grep -v grep | grep -E "chrome|Xvfb|ffmpeg|node"', (err, stdout) => {
-        res.json({
-            status: lastActionStatus,
-            connected_extensions: wss.clients.size,
-            pending_tasks: tasks.length,
-            completed_tasks_count: Object.keys(taskResults).length,
-            playwright: pwPage ? `OK: ${pwPage.url()}` : 'Connecting...',
-            x11_errors: x11Logs,
-            processes: stdout || err?.message,
-            time: new Date().toISOString()
-        });
-    });
-});
+// ── API Endpoints (The Mediator Core) ──
 
-app.get('/api/playwright/screenshot', async (req, res) => {
-    if (!pwPage) return res.status(503).send('Not ready');
-    try {
-        const pic = await pwPage.screenshot({ type: 'jpeg', quality: 70 });
-        res.set('Content-Type', 'image/jpeg').send(pic);
-    } catch (e) { res.status(500).send(e.message); }
-});
-
-app.get('/api/playwright/refresh', async (req, res) => {
-    await connectPlaywright();
-    res.json({ url: pwPage ? pwPage.url() : 'None' });
-});
-
-app.get('/api/screen.jpg', (req, res) => {
-    if (!lastFrameBuffer) return res.status(503).send('Loading...');
-    res.set('Content-Type', 'image/jpeg').send(lastFrameBuffer);
-});
-
-app.get('/api/kill', (req, res) => {
-    res.send('Restarting Container...');
-    setTimeout(() => process.exit(1), 500);
-});
-
-// ── Task Endpoints ──
+// 1. Receive Task from External Source
 app.post('/api/tasks', (req, res) => {
     const taskId = uuidv4();
-    // التأكد من توافق الحقول مع الإضافة (توقع personImage أو garmentImage)
     const newTask = { 
         id: taskId, 
-        taskId: taskId,
-        type: 'TASK_CREATED',
+        taskId: taskId, 
+        type: 'TASK_CREATED', 
+        status: 'PENDING',
         ...req.body, 
         timestamp: Date.now() 
     };
     tasks.push(newTask);
+    
+    // Broadcast to connected extensions
     wss.clients.forEach(c => {
         if (c.readyState === WebSocket.OPEN) c.send(JSON.stringify(newTask));
     });
+
+    console.log(`[Mediator] New Task Received: ${taskId}`);
     res.json({ status: 'SUCCESS', taskId });
 });
 
+// 2. Extension Polls for Tasks (Fallback)
 app.get('/api/tasks/next', (req, res) => {
-    res.json(tasks.shift() || null);
+    const task = tasks.shift();
+    if (task) {
+        task.status = 'PROCESSING';
+        console.log(`[Mediator] Task ${task.id} delivered via Polling`);
+    }
+    res.json(task || null);
 });
 
-app.post(['/api/tasks/:id/complete', '/api/results'], (req, res) => {
+// 3. Receive Result from Extension (HTTP)
+app.post(['/api/results', '/api/tasks/:id/complete'], (req, res) => {
     const taskId = req.params.id || req.body.taskId;
-    taskResults[taskId] = { ...req.body, timestamp: Date.now() };
+    console.log(`[Mediator] Result posted for Task: ${taskId}`);
+    taskResults[taskId] = { ...req.body, status: 'COMPLETED', timestamp: Date.now() };
     res.json({ status: 'OK' });
 });
 
+// 4. Get Task Result (For External Source)
 app.get('/api/tasks/:id/result', (req, res) => {
-    res.json(taskResults[req.params.id] || { error: 'Not ready' });
+    const result = taskResults[req.params.id];
+    if (result) res.json(result);
+    else res.status(202).json({ status: 'PROCESSING', message: 'Result not ready yet' });
 });
 
+// 5. Monitor Stats
+app.get('/api/monitor/stats', (req, res) => {
+    res.json({
+        uptime: process.uptime(),
+        connected_extensions: wss.clients.size,
+        pending_tasks: tasks.length,
+        completed_tasks: Object.keys(taskResults).length,
+        last_status: lastActionStatus,
+        tasks_history: Object.values(taskResults).slice(-5)
+    });
+});
+
+app.get('/api/debug', (req, res) => {
+    res.json({
+        status: lastActionStatus,
+        extensions: wss.clients.size,
+        tasks: tasks.length,
+        results: Object.keys(taskResults).length,
+        time: new Date().toISOString()
+    });
+});
+
+// ── Middleware & Static Files ──
 app.use(cors());
-app.use(bodyParser.json({ limit: '50mb' }));
+app.use(bodyParser.json({ limit: '100mb' }));
 app.use(express.static('public'));
-app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'control.html')));
+
+// Route for the new Monitor UI
+app.get('/monitor', (req, res) => res.sendFile(path.join(__dirname, 'public', 'monitor.html')));
+app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'monitor.html')));
 
 server.on('upgrade', (request, socket, head) => {
     if (request.url === '/ws') wss.handleUpgrade(request, socket, head, (ws) => wss.emit('connection', ws, request));
     else socket.destroy();
 });
 
-server.listen(PORT, '0.0.0.0', () => console.log(`[Server] Ghost V10.Stable running on ${PORT}`));
+server.listen(PORT, '0.0.0.0', () => {
+    console.log(`[Mediator] Server V12 running on port ${PORT}`);
+});
