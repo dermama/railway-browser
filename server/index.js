@@ -10,7 +10,20 @@ const { v4: uuidv4 } = require('uuid');
 
 const app = express();
 const server = http.createServer(app);
-const wss = new WebSocket.Server({ noServer: true });
+const wss = new WebSocket.Server({ 
+    noServer: true,
+    maxPayload: 100 * 1024 * 1024 // 100MB
+});
+
+// ── WebSocket Heartbeat ──
+function heartbeat() { this.isAlive = true; }
+setInterval(() => {
+    wss.clients.forEach(ws => {
+        if (ws.isAlive === false) return ws.terminate();
+        ws.isAlive = false;
+        ws.ping();
+    });
+}, 30000);
 
 const PORT = 7000;
 const DISPLAY = ':99';
@@ -67,6 +80,9 @@ startGhostStreamer();
 // ── WebSocket Handler ──
 wss.on('connection', (ws) => {
     console.log('[WS] Client connected (Extension or Monitor)');
+    ws.isAlive = true;
+    ws.on('pong', heartbeat);
+    
     ws.on('message', (msg) => {
         try {
             const data = JSON.parse(msg.toString());
