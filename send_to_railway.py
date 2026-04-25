@@ -22,7 +22,7 @@ else:
         img_base64 = get_base64(image_path)
         
         payload = {
-            "image": img_base64,
+            "personImage": img_base64,
             "prompt": "Test task for jewelry logo"
         }
         
