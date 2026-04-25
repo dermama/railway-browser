@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (result.nodeMindApiKey) {
             apiKeyInput.value = result.nodeMindApiKey;
         }
-        serverUrlInput.value = result.nodeMindServerUrl || 'wss://monakoki-mdffcd.hf.space';
+        serverUrlInput.value = result.nodeMindServerUrl || 'ws://127.0.0.1:7000/ws';
     });
 
     saveBtn.addEventListener('click', () => {
