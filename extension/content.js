@@ -1,4 +1,3 @@
-
 // content.js - AI Fashion Merger Content Script
 
 console.log("AI Fashion Merger Content Script Loaded.");
@@ -6,7 +5,7 @@ console.log("AI Fashion Merger Content Script Loaded.");
 // Identify if this is the App frame (AI Studio or Hugging Face)
 const isAppFrame = window.location.hostname.includes('.run.app') || 
                    window.location.hostname.includes('.hf.space') ||
-                   window.location.hostname.includes('ai.studio'); // User's provided URL
+                   window.location.hostname.includes('aistudio.google.com'); // User's provided URL
 if (isAppFrame) {
     console.log("[Extension] AI App Detected! Registering...");
     chrome.runtime.sendMessage({ type: 'REGISTER_APP' });
@@ -249,7 +248,7 @@ const addTryOnButtons = () => {
 let lastCapturedBase64 = null;
 
 const scrapeResults = async () => {
-    if (!window.location.hostname.includes('ai.studio')) return;
+    if (!window.location.hostname.includes('aistudio.google.com')) return;
 
     // AI Studio uses 'image-container' or specific Gradio output classes
     // We target the image that appears in the "Result" area
