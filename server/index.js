@@ -31,8 +31,15 @@ const DISPLAY = ':99';
 // ── Global Mediator State ──
 let tasks = [];
 let taskResults = {};
+let executionLogs = [];
 let lastActionStatus = "System Ready";
-let lastFrameBuffer = null;
+
+function addLog(msg) {
+    const entry = `[${new Date().toLocaleTimeString()}] ${msg}`;
+    console.log(entry);
+    executionLogs.push(entry);
+    if (executionLogs.length > 50) executionLogs.shift();
+}
 
 // ── Minimalist xdotool Interaction ──
 function directAction(data) {
@@ -46,12 +53,12 @@ function directAction(data) {
     if (cmd) {
         exec(cmd, { env: { ...process.env, DISPLAY } });
         lastActionStatus = `Executed: ${action}`;
+        addLog(`Input: ${action}`);
     }
 }
 
-// ── FFMPEG Screen Streamer (For VNC Monitor) ──
+// ── FFMPEG Screen Streamer ──
 function startGhostStreamer() {
-    console.log('[Ghost] Starting FFMPEG Streamer...');
     const streamer = spawn('ffmpeg', [
         '-f', 'x11grab', '-r', '12', '-s', '1280x800', '-i', DISPLAY,
         '-f', 'image2pipe', '-vcodec', 'mjpeg', '-'
@@ -64,8 +71,6 @@ function startGhostStreamer() {
         while (eoiIndex !== -1) {
             const frame = buffer.slice(0, eoiIndex + 2);
             buffer = buffer.slice(eoiIndex + 2);
-            lastFrameBuffer = frame;
-            // Broadcast screen to monitor clients
             if (wss.clients.size > 0) {
                 const msg = JSON.stringify({ type: 'SCREENSHOT_STREAM', image: `data:image/jpeg;base64,${frame.toString('base64')}` });
                 wss.clients.forEach(c => { if (c.readyState === WebSocket.OPEN) c.send(msg); });
@@ -79,39 +84,32 @@ startGhostStreamer();
 
 // ── WebSocket Handler ──
 wss.on('connection', (ws, req) => {
-    console.log('[WS] New connection');
     ws.isAlive = true;
     ws.on('pong', heartbeat);
-    
-    // تمييز نوع المتصل بناءً على الـ URL أو رسالة تعريفية
     ws.clientType = 'unknown';
 
-    // إرسال المهام المنتظرة فوراً إذا كان المتصل إضافة
     if (tasks.length > 0) {
-        tasks.forEach(task => {
-            ws.send(JSON.stringify(task));
-        });
+        addLog(`Pushing ${tasks.length} pending tasks to new connection`);
+        tasks.forEach(task => ws.send(JSON.stringify(task)));
     }
 
     ws.on('message', (msg) => {
         try {
             const data = JSON.parse(msg.toString());
             if (data.type === 'IDENTIFY') {
-                ws.clientType = data.client; // 'extension' or 'monitor'
-                console.log(`[WS] Client identified as: ${ws.clientType}`);
+                ws.clientType = data.client;
+                addLog(`Client Identified: ${ws.clientType}`);
             }
             if (data.type === 'REMOTE_ACTION') directAction(data);
             if (data.type === 'RESULT_READY') {
-                console.log(`[Mediator] Result received for Task ${data.taskId}`);
+                addLog(`Result Received for Task: ${data.taskId}`);
                 taskResults[data.taskId] = { ...data, status: 'COMPLETED', timestamp: Date.now() };
             }
         } catch (e) {}
     });
 });
 
-// ── API Endpoints (The Mediator Core) ──
-
-// 1. Receive Task from External Source
+// ── API Endpoints ──
 app.post('/api/tasks', (req, res) => {
     const taskId = uuidv4();
     const newTask = { 
@@ -123,42 +121,29 @@ app.post('/api/tasks', (req, res) => {
         timestamp: Date.now() 
     };
     tasks.push(newTask);
+    addLog(`Task Created: ${taskId}`);
     
-    // Broadcast to connected extensions
     wss.clients.forEach(c => {
         if (c.readyState === WebSocket.OPEN) c.send(JSON.stringify(newTask));
     });
-
-    console.log(`[Mediator] New Task Received: ${taskId}`);
     res.json({ status: 'SUCCESS', taskId });
 });
 
-// 2. Extension Polls for Tasks (Fallback)
 app.get('/api/tasks/next', (req, res) => {
     const task = tasks.shift();
     if (task) {
-        task.status = 'PROCESSING';
-        console.log(`[Mediator] Task ${task.id} delivered via Polling`);
+        addLog(`Task ${task.id} taken via Polling`);
     }
     res.json(task || null);
 });
 
-// 3. Receive Result from Extension (HTTP)
 app.post(['/api/results', '/api/tasks/:id/complete'], (req, res) => {
     const taskId = req.params.id || req.body.taskId;
-    console.log(`[Mediator] Result posted for Task: ${taskId}`);
+    addLog(`Result Uploaded for Task: ${taskId}`);
     taskResults[taskId] = { ...req.body, status: 'COMPLETED', timestamp: Date.now() };
     res.json({ status: 'OK' });
 });
 
-// 4. Get Task Result (For External Source)
-app.get('/api/tasks/:id/result', (req, res) => {
-    const result = taskResults[req.params.id];
-    if (result) res.json(result);
-    else res.status(202).json({ status: 'PROCESSING', message: 'Result not ready yet' });
-});
-
-// 5. Monitor Stats
 app.get('/api/monitor/stats', (req, res) => {
     const clients = Array.from(wss.clients);
     res.json({
@@ -167,27 +152,13 @@ app.get('/api/monitor/stats', (req, res) => {
         connected_monitors: clients.filter(c => c.clientType === 'monitor' || c.clientType === 'unknown').length,
         pending_tasks: tasks.length,
         completed_tasks: Object.keys(taskResults).length,
-        last_status: lastActionStatus,
-        tasks_history: Object.values(taskResults).slice(-5)
+        logs: executionLogs
     });
 });
 
-app.get('/api/debug', (req, res) => {
-    res.json({
-        status: lastActionStatus,
-        extensions: wss.clients.size,
-        tasks: tasks.length,
-        results: Object.keys(taskResults).length,
-        time: new Date().toISOString()
-    });
-});
-
-// ── Middleware & Static Files ──
 app.use(cors());
 app.use(bodyParser.json({ limit: '100mb' }));
 app.use(express.static('public'));
-
-// Route for the new Monitor UI
 app.get('/monitor', (req, res) => res.sendFile(path.join(__dirname, 'public', 'monitor.html')));
 app.get('/', (req, res) => res.sendFile(path.join(__dirname, 'public', 'monitor.html')));
 
@@ -196,6 +167,4 @@ server.on('upgrade', (request, socket, head) => {
     else socket.destroy();
 });
 
-server.listen(PORT, '0.0.0.0', () => {
-    console.log(`[Mediator] Server V12 running on port ${PORT}`);
-});
+server.listen(PORT, '0.0.0.0', () => console.log(`[Mediator] Running on ${PORT}`));

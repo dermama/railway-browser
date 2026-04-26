@@ -135,14 +135,10 @@
                 document.getElementById('count-completed').innerText = data.completed_tasks;
 
                 const logs = document.getElementById('task-logs');
-                if (data.tasks_history.length > 0) {
-                    logs.innerHTML = data.tasks_history.map(t => `
-                        <div class="task-row">
-                            <span>ID: ${t.taskId.substring(0, 8)}...</span>
-                            <span>${new Date(t.timestamp).toLocaleTimeString('ar-SA')}</span>
-                            <span class="status-badge status-completed">مكتمل</span>
-                        </div>
-                    `).join('');
+                if (data.logs && data.logs.length > 0) {
+                    logs.innerHTML = data.logs.map(log => `
+                        <div class="task-row">${log}</div>
+                    `).reverse().join('');
                 }
             } catch (e) {}
         }
