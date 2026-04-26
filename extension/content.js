@@ -3,11 +3,10 @@
 console.log("AI Fashion Merger Content Script Loaded.");
 
 // Identify if this is the App frame (AI Studio or Hugging Face)
-const isAppFrame = window.location.hostname.includes('.run.app') || 
-                   window.location.hostname.includes('.hf.space') ||
-                   window.location.hostname.includes('aistudio.google.com'); // User's provided URL
+// Identify if this is the App frame (Always TRUE to ensure registration on ANY site)
+const isAppFrame = true; 
 if (isAppFrame) {
-    console.log("[Extension] AI App Detected! Registering...");
+    console.log("[Extension] AI App Detected! Registering as Target...");
     chrome.runtime.sendMessage({ type: 'REGISTER_APP' });
 }
 
@@ -100,6 +99,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
     }
     if (message.type === 'FASHION_REQUEST') {
+        console.log("[Extension] Task received from Background:", message.data.taskId);
+        
+        // VISUAL FEEDBACK: Show an alert so the user knows it arrived
+        const msgText = `📥 [Mediator] تم استلام صورة جديدة!\nرقم المهمة: ${message.data.taskId}`;
+        const notify = document.createElement('div');
+        notify.innerHTML = msgText.replace(/\n/g, '<br>');
+        notify.style = "position: fixed; top: 20px; left: 50%; transform: translateX(-50%); background: #10b981; color: white; padding: 15px 25px; border-radius: 10px; z-index: 999999; font-weight: bold; box-shadow: 0 10px 30px rgba(0,0,0,0.5); font-family: sans-serif; text-align: center; border: 2px solid white;";
+        document.body.appendChild(notify);
+        setTimeout(() => notify.remove(), 5000);
+
         if (message.data && message.data.prompt) {
             fillPrompt(message.data.prompt);
         }

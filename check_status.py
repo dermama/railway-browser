@@ -12,6 +12,10 @@ try:
         print(f"- Connected Monitor Panels: {data.get('connected_monitors')}")
         print(f"- Pending Tasks: {data.get('pending_tasks')}")
         print(f"- Completed Tasks: {data.get('completed_tasks')}")
+        if data.get('logs'):
+            print("\nRecent Logs:")
+            for log in data.get('logs')[-5:]:
+                print(f"  {log}")
     else:
         print(f"Failed to reach server. Status Code: {response.status_code}")
 except Exception as e:
