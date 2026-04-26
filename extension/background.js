@@ -234,15 +234,31 @@ async function broadcastToAllTabs(data) {
 }
 
 async function relayToApp(data) {
-    if (appTarget) {
-        chrome.tabs.sendMessage(appTarget.tabId, {
-            source: 'NODEMIND_EXTENSION',
-            type: 'FASHION_REQUEST',
-            data: data
-        }, { frameId: appTarget.frameId }).catch(() => {
-            appTarget = null;
-        });
+    if (!appTarget) {
+        console.warn("[Background] No appTarget registered. Falling back to active tab.");
+        try {
+            const tabs = await chrome.tabs.query({ active: true, lastFocusedWindow: true });
+            if (tabs && tabs.length > 0) {
+                appTarget = { tabId: tabs[0].id, frameId: 0 };
+            } else {
+                console.error("[Background] FATAL: No active tab found to receive the task.");
+                return;
+            }
+        } catch (e) {
+            console.error("[Background] Error querying active tab:", e);
+            return;
+        }
     }
+
+    console.log("[Background] Relaying task to App Tab:", appTarget.tabId);
+    chrome.tabs.sendMessage(appTarget.tabId, {
+        source: 'NODEMIND_EXTENSION',
+        type: 'FASHION_REQUEST',
+        data: data
+    }, { frameId: appTarget.frameId }).catch((e) => {
+        console.warn("[Background] Failed to send message to tab, clearing appTarget:", e);
+        appTarget = null;
+    });
 }
 
 async function handleCommand(command, sender) {
