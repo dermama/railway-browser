@@ -78,14 +78,21 @@ function startGhostStreamer() {
 startGhostStreamer();
 
 // ── WebSocket Handler ──
-wss.on('connection', (ws) => {
-    console.log('[WS] Client connected (Extension or Monitor)');
+wss.on('connection', (ws, req) => {
+    console.log('[WS] New connection');
     ws.isAlive = true;
     ws.on('pong', heartbeat);
     
+    // تمييز نوع المتصل بناءً على الـ URL أو رسالة تعريفية
+    ws.clientType = 'unknown';
+
     ws.on('message', (msg) => {
         try {
             const data = JSON.parse(msg.toString());
+            if (data.type === 'IDENTIFY') {
+                ws.clientType = data.client; // 'extension' or 'monitor'
+                console.log(`[WS] Client identified as: ${ws.clientType}`);
+            }
             if (data.type === 'REMOTE_ACTION') directAction(data);
             if (data.type === 'RESULT_READY') {
                 console.log(`[Mediator] Result received for Task ${data.taskId}`);
@@ -146,9 +153,11 @@ app.get('/api/tasks/:id/result', (req, res) => {
 
 // 5. Monitor Stats
 app.get('/api/monitor/stats', (req, res) => {
+    const clients = Array.from(wss.clients);
     res.json({
         uptime: process.uptime(),
-        connected_extensions: wss.clients.size,
+        connected_extensions: clients.filter(c => c.clientType === 'extension').length,
+        connected_monitors: clients.filter(c => c.clientType === 'monitor' || c.clientType === 'unknown').length,
         pending_tasks: tasks.length,
         completed_tasks: Object.keys(taskResults).length,
         last_status: lastActionStatus,

@@ -148,6 +148,9 @@
         }
 
         const ws = new WebSocket(wsUrl);
+        ws.onopen = () => {
+            ws.send(JSON.stringify({ type: 'IDENTIFY', client: 'monitor' }));
+        };
         ws.onmessage = (event) => {
             const data = JSON.parse(event.data);
             if (data.type === 'SCREENSHOT_STREAM') {

@@ -81,6 +81,7 @@ function connectToExternalServer(url) {
 
         socket.onopen = () => {
             console.log("[Background] Connected to External Server.");
+            socket.send(JSON.stringify({ type: 'IDENTIFY', client: 'extension' }));
             broadcastToAllTabs({ type: 'SERVER_STATUS', status: 'ONLINE' });
         };
 
