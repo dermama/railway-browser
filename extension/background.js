@@ -31,7 +31,11 @@ function startPolling() {
         if (!config.serverUrl) return;
 
         try {
-            const apiUrl = config.serverUrl.replace('wss://', 'https://').replace('ws://', 'http://');
+            // تصحيح بناء الرابط: حذف أي مسارات إضافية والتركيز على الـ Origin فقط
+            let apiUrl = config.serverUrl.replace('wss://', 'https://').replace('ws://', 'http://');
+            const urlObj = new URL(apiUrl);
+            apiUrl = `${urlObj.protocol}//${urlObj.host}`; // سيصبح دائماً http://127.0.0.1:7000 مثلاً
+
             const response = await fetch(`${apiUrl}/api/tasks/next`);
 
             // 204 = empty queue, not an error

@@ -86,6 +86,13 @@ wss.on('connection', (ws, req) => {
     // تمييز نوع المتصل بناءً على الـ URL أو رسالة تعريفية
     ws.clientType = 'unknown';
 
+    // إرسال المهام المنتظرة فوراً إذا كان المتصل إضافة
+    if (tasks.length > 0) {
+        tasks.forEach(task => {
+            ws.send(JSON.stringify(task));
+        });
+    }
+
     ws.on('message', (msg) => {
         try {
             const data = JSON.parse(msg.toString());
