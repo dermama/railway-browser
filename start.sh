@@ -15,10 +15,8 @@ sleep 2
 
 # 4. تشغيل سيرفر Node.js في الخلفية
 echo "Starting Node.js Server..."
-# حقن رابط السيرفر الحقيقي داخل الإضافة لضمان الاتصال
-if [ ! -z "$RAILWAY_PUBLIC_DOMAIN" ]; then
-    sed -i "s|ws://127.0.0.1:7000/ws|wss://$RAILWAY_PUBLIC_DOMAIN/ws|g" /app/extension/background.js
-fi
+# تثبيت الرابط الحقيقي يدوياً لضمان الاتصال
+sed -i "s|ws://127.0.0.1:7000/ws|wss://railway-browser-production.up.railway.app/ws|g" /app/extension/background.js
 cd /app/server && node index.js &
 sleep 5
 
